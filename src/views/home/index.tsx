@@ -1,69 +1,317 @@
 // Next, React
-import { FC, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { FC, useState, useEffect, useRef } from 'react';
 
-// Wallet
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-
-// Components
-import { RequestAirdrop } from '../../components/RequestAirdrop';
 import pkg from '../../../package.json';
 
-// Store
-import useUserSOLBalanceStore from '../../stores/useUserSOLBalanceStore';
+// ❌ DO NOT EDIT ANYTHING ABOVE THIS LINE
 
-export const HomeView: FC = ({ }) => {
-  const wallet = useWallet();
-  const { connection } = useConnection();
-
-  const balance = useUserSOLBalanceStore((s) => s.balance)
-  const { getUserSOLBalance } = useUserSOLBalanceStore()
-
-  useEffect(() => {
-    if (wallet.publicKey) {
-      console.log(wallet.publicKey.toBase58())
-      getUserSOLBalance(wallet.publicKey, connection)
-    }
-  }, [wallet.publicKey, connection, getUserSOLBalance])
-
+export const HomeView: FC = () => {
   return (
+    <div className="flex min-h-screen flex-col bg-black text-white">
+      {/* HEADER – fake Scrolly feed tabs */}
+      <header className="flex items-center justify-center border-b border-white/10 py-3">
+        <div className="flex items-center gap-2 rounded-full bg-white/5 px-2 py-1 text-[11px]">
+          <button className="rounded-full bg-slate-900 px-3 py-1 font-semibold text-white">
+            Feed
+          </button>
+          <button className="rounded-full px-3 py-1 text-slate-400">
+            Casino
+          </button>
+          <button className="rounded-full px-3 py-1 text-slate-400">
+            Kids
+          </button>
+        </div>
+      </header>
 
-    <div className="md:hero mx-auto p-4">
-      <div className="md:hero-content flex flex-col">
-        <div className='mt-6'>
-        <div className='text-sm font-normal align-bottom text-right text-slate-600 mt-4'>v{pkg.version}</div>
-        <h1 className="text-center text-5xl md:pl-12 font-bold text-transparent bg-clip-text bg-gradient-to-br from-indigo-500 to-fuchsia-500 mb-4">
-          Solana Next
-        </h1>
-        </div>
-        <h4 className="md:w-full text-2x1 md:text-4xl text-center text-slate-300 my-2">
-          <p>Unleash the full power of blockchain with Solana and Next.js 13.</p>
-          <p className='text-slate-500 text-2x1 leading-relaxed'>Full-stack Solana applications made easy.</p>
-        </h4>
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-500 rounded-lg blur opacity-40 animate-tilt"></div>
-          <div className="max-w-md mx-auto mockup-code bg-primary border-2 border-[#5252529f] p-6 px-10 my-2">
-            <pre data-prefix=">">
-              <code className="truncate">{`npx create-solana-dapp <dapp-name>`} </code>
-            </pre>
+      {/* MAIN – central game area (phone frame) */}
+      <main className="flex flex-1 items-center justify-center px-4 py-3">
+        <div className="relative aspect-[9/16] w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 shadow-[0_0_40px_rgba(56,189,248,0.35)]">
+          {/* Fake “feed card” top bar inside the phone */}
+          <div className="flex items-center justify-between px-3 py-2 text-[10px] text-slate-400">
+            <span className="rounded-full bg-white/5 px-2 py-1 text-[9px] uppercase tracking-wide">
+              Scrolly Game
+            </span>
+            <span className="text-[9px] opacity-70">#NoCodeJam</span>
+          </div>
+
+          {/* The game lives INSIDE this phone frame */}
+          <div className="flex h-[calc(100%-26px)] flex-col items-center justify-start px-3 pb-3 pt-1">
+            <GameSandbox />
           </div>
         </div>
-        <div className="flex flex-col mt-2">
-          <RequestAirdrop />
-          <h4 className="md:w-full text-2xl text-slate-300 my-2">
-          {wallet &&
-          <div className="flex flex-row justify-center">
-            <div>
-              {(balance || 0).toLocaleString()}
-              </div>
-              <div className='text-slate-600 ml-2'>
-                SOL
-              </div>
-          </div>
-          }
-          </h4>
-        </div>
-      </div>
+      </main>
+
+      {/* FOOTER – tiny version text */}
+      <footer className="flex h-5 items-center justify-center border-t border-white/10 px-2 text-[9px] text-slate-500">
+        <span>Scrolly · v{pkg.version}</span>
+      </footer>
     </div>
   );
 };
+
+// ✅ THIS IS THE ONLY PART YOU EDIT FOR THE JAM
+// Replace this entire GameSandbox component with the one AI generates.
+// Keep the name `GameSandbox` and the `FC` type.
+
+const GameSandbox: FC = () => {
+  /* ---------------- CONFIG ---------------- */
+  const MAX_LIVES = 3;
+  const BASE_IDLE_MS = 4000;
+  const LEVEL_UP_EVERY = 4;
+  const MAX_BLOCKS = 12;
+
+  /* ---------------- STATE ---------------- */
+  const [score, setScore] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [lives, setLives] = useState(MAX_LIVES);
+  const [gameOver, setGameOver] = useState(false);
+  const [correctId, setCorrectId] = useState(0);
+  const [heat, setHeat] = useState(0);
+  const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
+  const [shake, setShake] = useState(false);
+
+  /* ---------------- AUDIO (STABLE) ---------------- */
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const bgOscRef = useRef<OscillatorNode | null>(null);
+
+  const getCtx = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+    }
+    return audioCtxRef.current;
+  };
+
+  const playHit = () => {
+    const ctx = getCtx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.value = 880;
+    g.gain.value = 0.07;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.12);
+  };
+
+  const playBuzz = () => {
+    const ctx = getCtx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = 120;
+    g.gain.value = 0.1;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.22);
+  };
+
+  const startHum = () => {
+    if (bgOscRef.current) return;
+    const ctx = getCtx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 55;
+    g.gain.value = 0.02;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    bgOscRef.current = o;
+  };
+
+  const stopHum = () => {
+    bgOscRef.current?.stop();
+    bgOscRef.current = null;
+  };
+
+  /* ---------------- DERIVED ---------------- */
+  const blockCount = Math.min(3 * Math.ceil(level / 1), MAX_BLOCKS);
+  const idleMs = Math.max(BASE_IDLE_MS - level * 300, 1800);
+
+  const blockSize =
+    level < 3 ? 72 : level < 6 ? 60 : level < 9 ? 52 : 44;
+
+  const decoyChance = Math.min(0.25 + level * 0.07, 0.8);
+
+  /* ---------------- HELPERS ---------------- */
+  const reshuffle = () => {
+    setCorrectId(Math.floor(Math.random() * blockCount));
+    setHeat(0);
+  };
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 120);
+  };
+
+  const loseLife = () => {
+    setFlash('miss');
+    triggerShake();
+    playBuzz();
+
+    setTimeout(() => setFlash(null), 100);
+
+    setLives((l) => {
+      if (l - 1 <= 0) {
+        stopHum();
+        setGameOver(true);
+        return 0;
+      }
+      return l - 1;
+    });
+
+    reshuffle();
+  };
+
+  /* ---------------- HEAT SYSTEM ---------------- */
+  useEffect(() => {
+    if (gameOver) return;
+
+    const t = setInterval(() => {
+      setHeat((h) => {
+        const next = h + 100 / (idleMs / 100);
+        if (next >= 100) {
+          loseLife();
+          return 0;
+        }
+        return next;
+      });
+    }, 100);
+
+    return () => clearInterval(t);
+  }, [idleMs, gameOver]);
+
+  /* ---------------- INIT ---------------- */
+  useEffect(() => {
+    reshuffle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---------------- ACTION ---------------- */
+  const onTap = (i: number) => {
+    if (gameOver) return;
+
+    startHum();
+
+    if (i === correctId) {
+      playHit();
+      setFlash('hit');
+
+      // ✅ CLEAR FLASH BEFORE RESHUFFLE
+      setTimeout(() => {
+        setFlash(null);
+        reshuffle();
+      }, 90);
+
+      setScore((s) => {
+        const next = s + 1;
+        if (next % LEVEL_UP_EVERY === 0) {
+          setLevel((lv) => lv + 1);
+        }
+        return next;
+      });
+    } else {
+      loseLife();
+    }
+  };
+
+  const restart = () => {
+    stopHum();
+    setScore(0);
+    setLevel(1);
+    setLives(MAX_LIVES);
+    setGameOver(false);
+    reshuffle();
+  };
+
+  /* ---------------- RENDER ---------------- */
+  return (
+    <div
+      className={[
+        'relative flex h-full w-full flex-col justify-between rounded-2xl',
+        'bg-gradient-to-b from-slate-900 via-slate-950 to-black p-3 select-none',
+        shake ? 'translate-x-[2px]' : '',
+      ].join(' ')}
+    >
+      {/* HUD */}
+      <div className="flex items-center justify-between text-[11px] text-slate-200">
+        <span>⛏️ Lv {level}</span>
+        <span>Score {score}</span>
+        <span>{'⚡'.repeat(lives)}</span>
+      </div>
+
+      {/* HEAT */}
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-slate-700">
+        <div
+          className="h-full bg-amber-400 transition-all"
+          style={{ width: `${heat}%` }}
+        />
+      </div>
+
+      {/* GRID */}
+      <div className="grid grid-cols-3 grid-rows-4 gap-3 py-4 place-items-center">
+        {Array.from({ length: 12 }).map((_, i) => {
+          if (i >= blockCount) return <div key={i} className="opacity-0" />;
+
+          const isCorrect = i === correctId;
+          const isDecoy = !isCorrect && Math.random() < decoyChance;
+
+          return (
+            <button
+              key={i}
+              onClick={() => onTap(i)}
+              style={{ width: blockSize, height: blockSize }}
+              className={[
+                'flex items-center justify-center rounded-xl',
+                'transition-all active:scale-90 shadow-md',
+                flash === 'hit' && isCorrect ? 'ring-2 ring-amber-300' : '',
+                flash === 'miss' && !isCorrect ? 'ring-2 ring-red-400' : '',
+              ].join(' ')}
+            >
+              <span
+                style={{ fontSize: blockSize * 0.7 }}
+                className={[
+                  isCorrect
+                    ? 'opacity-100'
+                    : isDecoy
+                    ? 'opacity-[0.85] animate-pulse'
+                    : 'opacity-25',
+                ].join(' ')}
+              >
+                🪙
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {!gameOver && (
+        <div className="text-center text-[10px] text-slate-400">
+          Find the real coin before the rig overheats ⚠️
+        </div>
+      )}
+
+      {gameOver && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="text-xl font-bold text-red-400">
+              MINER EXHAUSTED
+            </div>
+            <div className="text-sm text-slate-300">
+              Level {level} · Score {score}
+            </div>
+            <button
+              onClick={restart}
+              className="rounded-full bg-amber-400 px-6 py-2 text-sm font-semibold text-black"
+            >
+              Restart Mining
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
