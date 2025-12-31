@@ -59,8 +59,10 @@ const GameSandbox: FC = () => {
   const BASE_IDLE_MS = 4000;
   const LEVEL_UP_EVERY = 4;
   const MAX_BLOCKS = 12;
+  const STAGE_HEIGHT = 320;
 
   /* ---------------- STATE ---------------- */
+  const [started, setStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [lives, setLives] = useState(MAX_LIVES);
@@ -70,7 +72,7 @@ const GameSandbox: FC = () => {
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
   const [shake, setShake] = useState(false);
 
-  /* ---------------- AUDIO (STABLE) ---------------- */
+  /* ---------------- AUDIO ---------------- */
   const audioCtxRef = useRef<AudioContext | null>(null);
   const bgOscRef = useRef<OscillatorNode | null>(null);
 
@@ -86,8 +88,8 @@ const GameSandbox: FC = () => {
     const ctx = getCtx();
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    o.frequency.value = 880;
-    g.gain.value = 0.07;
+    o.frequency.value = 900;
+    g.gain.value = 0.08;
     o.connect(g);
     g.connect(ctx.destination);
     o.start();
@@ -99,8 +101,8 @@ const GameSandbox: FC = () => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sawtooth';
-    o.frequency.value = 120;
-    g.gain.value = 0.1;
+    o.frequency.value = 140;
+    g.gain.value = 0.12;
     o.connect(g);
     g.connect(ctx.destination);
     o.start();
@@ -113,7 +115,7 @@ const GameSandbox: FC = () => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
-    o.frequency.value = 55;
+    o.frequency.value = 60;
     g.gain.value = 0.02;
     o.connect(g);
     g.connect(ctx.destination);
@@ -127,7 +129,7 @@ const GameSandbox: FC = () => {
   };
 
   /* ---------------- DERIVED ---------------- */
-  const blockCount = Math.min(3 * Math.ceil(level / 1), MAX_BLOCKS);
+  const blockCount = level < 3 ? 6 : level < 5 ? 9 : 12;
   const idleMs = Math.max(BASE_IDLE_MS - level * 300, 1800);
 
   const blockSize =
@@ -165,9 +167,9 @@ const GameSandbox: FC = () => {
     reshuffle();
   };
 
-  /* ---------------- HEAT SYSTEM ---------------- */
+  /* ---------------- HEAT ---------------- */
   useEffect(() => {
-    if (gameOver) return;
+    if (gameOver || !started) return;
 
     const t = setInterval(() => {
       setHeat((h) => {
@@ -181,17 +183,15 @@ const GameSandbox: FC = () => {
     }, 100);
 
     return () => clearInterval(t);
-  }, [idleMs, gameOver]);
+  }, [idleMs, gameOver, started]);
 
-  /* ---------------- INIT ---------------- */
   useEffect(() => {
     reshuffle();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ---------------- ACTION ---------------- */
   const onTap = (i: number) => {
-    if (gameOver) return;
+    if (gameOver || !started) return;
 
     startHum();
 
@@ -199,7 +199,6 @@ const GameSandbox: FC = () => {
       playHit();
       setFlash('hit');
 
-      // ✅ CLEAR FLASH BEFORE RESHUFFLE
       setTimeout(() => {
         setFlash(null);
         reshuffle();
@@ -207,9 +206,7 @@ const GameSandbox: FC = () => {
 
       setScore((s) => {
         const next = s + 1;
-        if (next % LEVEL_UP_EVERY === 0) {
-          setLevel((lv) => lv + 1);
-        }
+        if (next % LEVEL_UP_EVERY === 0) setLevel((lv) => lv + 1);
         return next;
       });
     } else {
@@ -219,6 +216,7 @@ const GameSandbox: FC = () => {
 
   const restart = () => {
     stopHum();
+    setStarted(false);
     setScore(0);
     setLevel(1);
     setLives(MAX_LIVES);
@@ -230,83 +228,119 @@ const GameSandbox: FC = () => {
   return (
     <div
       className={[
-        'relative flex h-full w-full flex-col justify-between rounded-2xl',
-        'bg-gradient-to-b from-slate-900 via-slate-950 to-black p-3 select-none',
+        'relative flex w-full flex-col rounded-2xl p-3 select-none',
+        'bg-[#0b1220]',
         shake ? 'translate-x-[2px]' : '',
       ].join(' ')}
     >
       {/* HUD */}
-      <div className="flex items-center justify-between text-[11px] text-slate-200">
-        <span>⛏️ Lv {level}</span>
-        <span>Score {score}</span>
+      <div className="flex items-center justify-between text-[12px] font-bold text-white">
+        <span>⛏️ LV {level}</span>
+        <span>SCORE {score}</span>
         <span>{'⚡'.repeat(lives)}</span>
       </div>
 
       {/* HEAT */}
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-slate-700">
+      <div className="mt-1 h-2 w-full rounded bg-white/20 overflow-hidden">
         <div
-          className="h-full bg-amber-400 transition-all"
+          className="h-full bg-yellow-400 transition-all"
           style={{ width: `${heat}%` }}
         />
       </div>
 
-      {/* GRID */}
-      <div className="grid grid-cols-3 grid-rows-4 gap-3 py-4 place-items-center">
-        {Array.from({ length: 12 }).map((_, i) => {
-          if (i >= blockCount) return <div key={i} className="opacity-0" />;
+      {/* FIXED STAGE */}
+      <div
+        className="relative flex flex-col justify-between"
+        style={{ height: STAGE_HEIGHT }}
+      >
+        {/* GRID */}
+        <div className="grid grid-cols-3 grid-rows-4 gap-3 py-4 place-items-center">
+          {Array.from({ length: 12 }).map((_, i) => {
+            if (i >= blockCount) return <div key={i} className="opacity-0" />;
 
-          const isCorrect = i === correctId;
-          const isDecoy = !isCorrect && Math.random() < decoyChance;
+            const isCorrect = i === correctId;
+            const isDecoy = !isCorrect && Math.random() < decoyChance;
 
-          return (
-            <button
-              key={i}
-              onClick={() => onTap(i)}
-              style={{ width: blockSize, height: blockSize }}
-              className={[
-                'flex items-center justify-center rounded-xl',
-                'transition-all active:scale-90 shadow-md',
-                flash === 'hit' && isCorrect ? 'ring-2 ring-amber-300' : '',
-                flash === 'miss' && !isCorrect ? 'ring-2 ring-red-400' : '',
-              ].join(' ')}
-            >
-              <span
-                style={{ fontSize: blockSize * 0.7 }}
+            return (
+              <button
+                key={i}
+                onClick={() => onTap(i)}
+                style={{ width: blockSize, height: blockSize }}
                 className={[
-                  isCorrect
-                    ? 'opacity-100'
-                    : isDecoy
-                    ? 'opacity-[0.85] animate-pulse'
-                    : 'opacity-25',
+                  'flex items-center justify-center rounded-xl',
+                  'transition-all active:scale-90',
+                  'bg-[#1b2a4a]',
+                  flash === 'hit' && isCorrect ? 'ring-2 ring-yellow-400' : '',
+                  flash === 'miss' && !isCorrect ? 'ring-2 ring-red-400' : '',
                 ].join(' ')}
               >
-                🪙
-              </span>
-            </button>
-          );
-        })}
+                <span
+                  style={{ fontSize: blockSize * 0.7 }}
+                  className={
+                    isCorrect
+                      ? 'opacity-100'
+                      : isDecoy
+                      ? 'opacity-[0.85] animate-pulse'
+                      : 'opacity-30'
+                  }
+                >
+                  🪙
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {!gameOver && (
+          <div className="text-center text-[11px] font-semibold text-white/80">
+            Find the REAL coin before power runs out
+          </div>
+        )}
       </div>
 
-      {!gameOver && (
-        <div className="text-center text-[10px] text-slate-400">
-          Find the real coin before the rig overheats ⚠️
+      {/* START SCREEN */}
+      {!started && !gameOver && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-[#111a33]">
+          <div className="flex flex-col items-center gap-4 px-6 text-center">
+            <div className="text-3xl font-extrabold text-yellow-400">
+              BLOCK MINER
+            </div>
+
+            <div className="space-y-2 text-[13px] font-bold text-white">
+              <div>🪙 ONE coin is REAL</div>
+              <div>👆 TAP it fast</div>
+              <div>⚡ WAITING drains power</div>
+            </div>
+
+            <button
+              onClick={() => setStarted(true)}
+              className="rounded-full bg-yellow-400 px-8 py-3 text-sm font-black text-black active:scale-95"
+            >
+              START MINING
+            </button>
+
+            <div className="text-[10px] font-semibold text-white/70">
+              Fast reactions = higher score
+            </div>
+          </div>
         </div>
       )}
 
+      {/* GAME OVER */}
       {gameOver && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="text-xl font-bold text-red-400">
+        <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-[#111a33]">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="text-2xl font-extrabold text-red-400">
               MINER EXHAUSTED
             </div>
-            <div className="text-sm text-slate-300">
-              Level {level} · Score {score}
+            <div className="text-sm font-bold text-white">
+              LEVEL {level} · SCORE {score}
             </div>
             <button
               onClick={restart}
-              className="rounded-full bg-amber-400 px-6 py-2 text-sm font-semibold text-black"
+              className="rounded-full bg-yellow-400 px-7 py-2 text-sm font-black text-black"
             >
-              Restart Mining
+              TRY AGAIN
             </button>
           </div>
         </div>
@@ -314,4 +348,3 @@ const GameSandbox: FC = () => {
     </div>
   );
 };
-
